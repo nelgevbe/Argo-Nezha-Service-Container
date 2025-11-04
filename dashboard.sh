@@ -14,7 +14,7 @@ mkdir -p $TEMP_DIR
 E[0]="Language:\n 1. English (default) \n 2. 简体中文"
 C[0]="${E[0]}"
 E[1]="Nezha Dashboard v0,v1 Combined for VPS (https://github.com/Kiritocyz/Argo-Nezha-Service-Container).\n  - Modified from Argo-Nezha-Service-Container of fscarmen \n  - Goodbye docker!\n  - Goodbye port mapping!\n  - Goodbye IPv4/IPv6 Compatibility!"
-C[1]="哪吒面板 VPS 兼容v0、v1版 (https://github.com/Kiritocyz/Argo-Nezha-Service-Container)\n  - 源自大佬 fscarmen 的 Argo-Nezha-Service-Container 修改 \n  - 告别 Docker！\n  - 告别端口映射！\n  - 告别 IPv4/IPv6 兼容性！"
+C[1]="哪吒面板 VPS 兼容v0、v1版 (https://github.com/Kiritocyz/Argo-Nezha-Service-Container)\n  - 修改自大佬 fscarmen 的 Argo-Nezha-Service-Container \n  - 告别 Docker！\n  - 告别端口映射！\n  - 告别 IPv4/IPv6 兼容性！"
 E[2]="Curren architecture \$(uname -m) is not supported. Feedback: [https://github.com/Kiritocyz/Argo-Nezha-Service-Container/issues]"
 C[2]="当前架构 \$(uname -m) 暂不支持,问题反馈:[https://github.com/Kiritocyz/Argo-Nezha-Service-Container/issues]"
 E[3]="Input errors up to 5 times.The script is aborted."
@@ -373,7 +373,16 @@ install() {
     tls $WORK_DIR/nezha.pem $WORK_DIR/nezha.key
 }
 EOF
-
+    if [[ -z "$DASHBOARD_VERSION" || "$DASHBOARD_VERSION" =~ 1\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+      cat >> $TEMP_DIR/Caddyfile  << EOF
+:$WEB_PORT {
+    reverse_proxy {
+        to localhost:$GRPC_PORT
+    }
+}
+EOF
+    fi
+  
   elif [ "$REVERSE_PROXY_MODE" = 'nginx' ]; then
     [ ! -x "$(type -p nginx)" ] && ${PACKAGE_INSTALL[int]} nginx
     GRPC_PROXY_RUN="nginx -c $WORK_DIR/nginx.conf"
