@@ -13,6 +13,7 @@ if [ ! -s /etc/supervisor/conf.d/damon.conf ]; then
   BACKUP_NUM= ${BACKUP_NUM:-'5'}
   CADDY_HTTP_PORT=2052
   WORK_DIR=/dashboard
+  NEZHA_AGENT_SECRET=${NEZHA_AGENT_SECRET:-}
 
   # 如不分离备份的 github 账户，默认与哪吒登陆的 github 账户一致
   GH_BACKUP_USER=${GH_BACKUP_USER:-$GH_USER}
@@ -222,7 +223,11 @@ site:
   Theme: "default"
 EOF
   else
-    LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+    if [ -n "$NEZHA_AGENT_SECRET" ]; then
+      LOCAL_TOKEN="$NEZHA_AGENT_SECRET"
+    else
+      LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+    fi
     AGENT_UUID=$(openssl rand -hex 16 | sed 's/\(........\)\(....\)\(....\)\(....\)\(............\)/\1-\2-\3-\4-\5/')
     cat > ${WORK_DIR}/data/config.yaml << EOF
 agent_secret_key: $LOCAL_TOKEN
@@ -280,17 +285,13 @@ EOF
   fi
 
   if [[ "$DASHBOARD_VERSION" =~ 0\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
-    # 下载包含本地数据的 sqlite.db 文件，生成18位随机字符串用于本地 Token
     wget -P ${WORK_DIR}/data/ ${GH_PROXY}https://github.com/Kiritocyz/Argo-Nezha-Service-Container/raw/main/sqlite.db
-    LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+    if [ -n "$NEZHA_AGENT_SECRET" ]; then
+      LOCAL_TOKEN="$NEZHA_AGENT_SECRET"
+    else
+      LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
+    fi  
     sqlite3 ${WORK_DIR}/data/sqlite.db "update servers set secret='${LOCAL_TOKEN}' where created_at='2023-04-23 13:02:00.770756566+08:00'"
-  fi
-
-  if [[ -n "$GH_CLIENTID" && -n "$GH_CLIENTSECRET" ]]; then
-    # SSH path 与 GH_CLIENTID 一样
-    echo root:"$GH_CLIENTSECRET" | chpasswd root
-    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/g;s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config
-    service ssh restart
   fi
 
   # 判断 ARGO_AUTH 为 json 还是 token
