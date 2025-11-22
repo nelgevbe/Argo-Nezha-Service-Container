@@ -42,24 +42,24 @@ docker镜像： `mikehand888/argo-nezha:latest` ， 支持 amd64 和 arm64 架�
 
   | 变量名        | 是否必须  | 备注 |
   | ------------ | ------   | ---- |
-  | GH_USER             | v0或填   | github 的用户名，用于面板管理授权 |
-  | GH_CLIENTID         | v0必填   | 在 github 上申请 |
-  | GH_CLIENTSECRET     | v0必填   | 在 github 上申请 |
+  | GH_USER             | v0或填 | github 的用户名，用于面板管理授权 |
+  | GH_CLIENTID         | v0必填 | 在 github 上申请 |
+  | GH_CLIENTSECRET     | v0必填 | 在 github 上申请 |
   | GH_BACKUP_USER      | 备份或填 | 在 github 上备份哪吒服务端数据库的 github 用户名，不填则与面板管理授权的账户 GH_USER 一致  |
   | GH_REPO             | 备份必填 | 在 github 上备份哪吒服务端数据库文件的 github 库 |
   | GH_EMAIL            | 备份必填 | github 的邮箱，用于备份库的 git 推送 |
   | GH_PAT              | 备份必填 | github 的私钥（PAT），用于备份库的 git 推送 |
-  | REVERSE_PROXY_MODE  | 否       | 默认使用 Caddy 应用来反代，可以不填。v0可选 Nginx 或 gRPCwebProxy；v1必须用 Caddy |
-  | ARGO_AUTH           | 必填     | Json: 从 https://fscarmen.cloudflare.now.cc 获取的 Argo Json<br> Token: 从 Cloudflare 官网获取 |
-  | ARGO_DOMAIN         | 必填     | Argo 域名 |
-  | NO_AUTO_RENEW       | 否       | 默认不需要该变量，即每天定时同步在线最新的备份和还原脚本。如不需要该功能，设置此变量为 `1` |
-  | DASHBOARD_VERSION   | 否       | 指定面板的版本。`v0.00.00` 的格式和 `v1.00.00` 的格式，填写了将会把版本固定在所填版本。不填则是最新的v1面板 |
-  | AGENT_VERSION       | 否       | 指定探针的版本。`v0.00.00` 的格式和 `v1.00.00` 的格式，填写了将会把版本固定在所填版本。不填有两种情况：对于v1面板是保持最新的v1探针；对于v0面板是v0.20.5版本 |
-  | PRO_PORT            | 否       | 容器平台的开放端口，不填默认为80。如果容器开放的端口不为80且argo隧道使用的token，则修改此处并手动修改隧道设置里对应的端口 |
-  | UUID                | 否       | 填写会有节点，在日志查看base64 |
-  | BACKUP_TIME         | 否       | 自定义备份时间，不填默认为 `0 4 * * *`，即每天北京时间4点备份 |
-  | BACKUP_NUM          | 否       | 自定义备份仓库中的备份总数，不填默认为 5，即仓库里只保留5个备份 |
-  | NEZHA_AGENT_SECRET  | 否       | 自定义agent_secret |
+  | REVERSE_PROXY_MODE  | 否 | 默认使用 Caddy 应用来反代，可以不填。v0可选 Nginx 或 gRPCwebProxy；v1必须用 Caddy |
+  | ARGO_AUTH           | 必填 | Json: 从 https://fscarmen.cloudflare.now.cc 获取的 Argo Json<br> Token: 从 Cloudflare 官网获取 |
+  | ARGO_DOMAIN         | 必填 | Argo 域名 |
+  | NO_AUTO_RENEW       | 否 | 默认不需要该变量，即每天定时同步在线最新的备份和还原脚本。如不需要该功能，设置此变量为 `1` |
+  | DASHBOARD_VERSION   | 否 | 指定面板的版本。`v0.00.00` 的格式和 `v1.00.00` 的格式，填写了将会把版本固定在所填版本。不填则是最新的v1面板 |
+  | AGENT_VERSION       | 否 | 指定探针的版本。`v0.00.00` 的格式和 `v1.00.00` 的格式，填写了将会把版本固定在所填版本。不填有两种情况：对于v1面板是保持最新的v1探针；对于v0面板是v0.20.5版本 |
+  | PRO_PORT            | 否 | 容器平台的开放端口，不填默认为80。如果容器开放的端口不为80且argo隧道使用的token，则修改此处并手动修改隧道设置里对应的端口 |
+  | UUID                | 否 | 填写会有节点，在日志查看base64 |
+  | BACKUP_TIME         | 否 | 自定义备份时间，不填默认为 `0 4 * * *`，即每天北京时间4点备份 |
+  | BACKUP_NUM          | 否 | 自定义备份仓库中的备份总数，不填默认为 5，即仓库里只保留5个备份 |
+  | NEZHA_AGENT_SECRET  | 否 | 自定义agent_secret |
 
 ## 在VPS上使用脚本部署
 
