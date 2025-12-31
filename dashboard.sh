@@ -292,15 +292,9 @@ dashboard_variables() {
     error "\n $(text 42) \n"
   fi
 
-  if [ -z "$LOCAL_TOKEN" ]; then
-    reading "\n (1.5/14) $(text 45) " INPUT_TOKEN
-    LOCAL_TOKEN="$INPUT_TOKEN"
-  fi
-  if [ -z "$LOCAL_TOKEN" ]; then
-    LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
-    info " Generated Agent Secret: $LOCAL_TOKEN"
-  fi
-
+  [ -z "$LOCAL_TOKEN" ] && reading "\n (1.5/14) $(text 45) " LOCAL_TOKEN
+  [ -z "$LOCAL_TOKEN" ] && LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+  
   [ -z "$GH_USER" ] && reading " (2/14) $(text 9) " GH_USER
   [ -z "$GH_CLIENTID" ] && reading "\n (3/14) $(text 10) " GH_CLIENTID
   [ -z "$GH_CLIENTSECRET" ] && reading "\n (4/14) $(text 11) " GH_CLIENTSECRET
