@@ -5,6 +5,8 @@ if [ -n "$NEZHA_AGENT_SECRET" ]; then
   LOCAL_TOKEN="$NEZHA_AGENT_SECRET"
 elif [ -f "/dashboard/data/config.yaml" ]; then
   LOCAL_TOKEN=$(grep 'agent_secret_key' /dashboard/data/config.yaml | awk '{print $2}' | tr -d '" ')
+else
+  LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
 fi
 
 # 首次运行时执行以下流程，再次运行时存在 /etc/supervisor/conf.d/damon.conf 文件，直接到最后一步
@@ -230,11 +232,6 @@ site:
   Theme: "default"
 EOF
   else
-    if [ -n "$NEZHA_AGENT_SECRET" ]; then
-      LOCAL_TOKEN="$NEZHA_AGENT_SECRET"
-    else
-      LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
-    fi
     AGENT_UUID=$(openssl rand -hex 16 | sed 's/\(........\)\(....\)\(....\)\(....\)\(............\)/\1-\2-\3-\4-\5/')
     cat > ${WORK_DIR}/data/config.yaml << EOF
 agent_secret_key: $LOCAL_TOKEN
@@ -293,12 +290,6 @@ EOF
 
   if [[ "$DASHBOARD_VERSION" =~ 0\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
     wget -P ${WORK_DIR}/data/ ${GH_PROXY}https://github.com/Kiritocyz/Argo-Nezha-Service-Container/raw/main/sqlite.db
-    if [ -n "$NEZHA_AGENT_SECRET" ]; then
-      LOCAL_TOKEN="$NEZHA_AGENT_SECRET"
-    else
-      LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 18)
-    fi  
-    sqlite3 ${WORK_DIR}/data/sqlite.db "update servers set secret='${LOCAL_TOKEN}' where created_at='2023-04-23 13:02:00.770756566+08:00'"
   fi
 
   # 判断 ARGO_AUTH 为 json 还是 token
