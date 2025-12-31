@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+# 从环境变量读取AGENT_SECRET
+if [ -n "$NEZHA_AGENT_SECRET" ]; then
+  LOCAL_TOKEN="$NEZHA_AGENT_SECRET"
+elif [ -f "/dashboard/data/config.yaml" ]; then
+  LOCAL_TOKEN=$(grep 'agent_secret_key' /dashboard/data/config.yaml | awk '{print $2}' | tr -d '" ')
+fi
+
 # 首次运行时执行以下流程，再次运行时存在 /etc/supervisor/conf.d/damon.conf 文件，直接到最后一步
 if [ ! -s /etc/supervisor/conf.d/damon.conf ]; then
 
@@ -13,7 +20,6 @@ if [ ! -s /etc/supervisor/conf.d/damon.conf ]; then
   BACKUP_NUM=${BACKUP_NUM:-'5'}
   CADDY_HTTP_PORT=2052
   WORK_DIR=/dashboard
-  NEZHA_AGENT_SECRET=${NEZHA_AGENT_SECRET:-}
 
   # 如不分离备份的 github 账户，默认与哪吒登陆的 github 账户一致
   GH_BACKUP_USER=${GH_BACKUP_USER:-$GH_USER}
@@ -500,8 +506,20 @@ echo "=============================="
 fi
   # 赋执行权给 sh 及所有应用
   chmod +x $WORK_DIR/{cloudflared,app,nezha-agent,*.sh}
-
 fi
+
+(
+  sleep 20
+  if [ -f "${WORK_DIR}/data/sqlite.db" ] && [ -n "$LOCAL_TOKEN" ]; then
+    if [[ "$DASHBOARD_VERSION" =~ 0\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+      # 如果是 V0，执行 V0 专属的 SQL（更新 servers 表）
+      sqlite3 ${WORK_DIR}/data/sqlite.db "UPDATE servers SET secret='${LOCAL_TOKEN}' WHERE created_at='2023-04-23 13:02:00.770756566+08:00';"
+     else
+       # 如果是 V1，执行 V1 专属的 SQL（更新 users 表）
+       sqlite3 ${WORK_DIR}/data/sqlite.db "UPDATE users SET agent_secret='${LOCAL_TOKEN}' WHERE id=1;"
+    fi
+  fi
+) &
 
 # 运行 supervisor 进程守护
 supervisord -c /etc/supervisor/supervisord.conf
