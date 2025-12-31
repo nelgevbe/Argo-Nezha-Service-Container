@@ -6,6 +6,7 @@ WORK_DIR='/opt/nezha/dashboard'
 TEMP_DIR='/tmp/nezha'
 START_PORT='5000'
 NEED_PORTS=4 # web , gRPC , gRPC proxy, caddy http
+LOCAL_TOKEN="${NEZHA_AGENT_SECRET:-}"
 
 trap "rm -rf $TEMP_DIR; echo -e '\n' ;exit" INT QUIT TERM EXIT
 
@@ -101,6 +102,8 @@ E[43]="Please enter the required backup time (default is Cron expression: 0 4 * 
 C[43]="请输入需要的备份时间(默认为Cron表达式: 0 4 * * *):"
 E[44]="Please enter the number of backups to be retained in the backup repository (default is 5):"
 C[44]="请输入备份仓库里所保留的备份数量(默认为 5):"
+E[45]="Please enter the Agent Secret (skip to generate randomly):"
+C[45]="请输入 Agent Secret (跳过则随机生成):"
 
 # 自定义字体彩色，read 函数
 warning() { echo -e "\033[31m\033[01m$*\033[0m"; }  # 红色
@@ -242,7 +245,7 @@ check_dependencies() {
     grep -qi 'busybox' <<< "$CHECK_WGET" && ${PACKAGE_INSTALL[int]} wget >/dev/null 2>&1
 
     DEPS_CHECK=("bash" "rc-update" "git" "ss" "openssl" "python3" "unzip")
-    DEPS_INSTALL=("bash" "openrc" "git" "iproute2" "openssl" "python3" "unzip")
+    DEPS_INSTALL=("bash" "openrc" "git" "iproute2" "openssl" "python3" "unzip" "sqlite")
     for ((g=0; g<${#DEPS_CHECK[@]}; g++)); do [ ! -x "$(type -p ${DEPS_CHECK[g]})" ] && [[ ! "${DEPS[@]}" =~ "${DEPS_INSTALL[g]}" ]] && DEPS+=(${DEPS_INSTALL[g]}); done
     if [ "${#DEPS[@]}" -ge 1 ]; then
       info "\n $(text 7) ${DEPS[@]} \n"
@@ -258,7 +261,7 @@ check_dependencies() {
   else
     # 检测 Linux 系统的依赖，升级库并重新安装依赖
     DEPS_CHECK=("wget" "systemctl" "ss" "git" "timedatectl" "openssl" "unzip")
-    DEPS_INSTALL=("wget" "systemctl" "iproute2" "git" "timedatectl" "openssl" "unzip")
+    DEPS_INSTALL=("wget" "systemctl" "iproute2" "git" "timedatectl" "openssl" "unzip" "sqlite3")
     for ((g=0; g<${#DEPS_CHECK[@]}; g++)); do [ ! -x "$(type -p ${DEPS_CHECK[g]})" ] && [[ ! "${DEPS[@]}" =~ "${DEPS_INSTALL[g]}" ]] && DEPS+=(${DEPS_INSTALL[g]}); done
     if [ "${#DEPS[@]}" -ge 1 ]; then
       info "\n $(text 7) ${DEPS[@]} \n"
@@ -287,6 +290,15 @@ dashboard_variables() {
     { wget -qO $TEMP_DIR/dashboard.zip ${GH_PROXY}https://github.com/naiba/nezha/releases/download/$DASHBOARD_LATEST/dashboard-linux-$ARCH.zip >/dev/null 2>&1; }&
   else
     error "\n $(text 42) \n"
+  fi
+
+  if [ -z "$LOCAL_TOKEN" ]; then
+    reading "\n (1.5/14) $(text 45) " INPUT_TOKEN
+    LOCAL_TOKEN="$INPUT_TOKEN"
+  fi
+  if [ -z "$LOCAL_TOKEN" ]; then
+    LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+    info " Generated Agent Secret: $LOCAL_TOKEN"
   fi
 
   [ -z "$GH_USER" ] && reading " (2/14) $(text 9) " GH_USER
@@ -326,14 +338,14 @@ dashboard_variables() {
     [[ -z "$ARGO_AUTH" || -z "$ARGO_DOMAIN" ]] && error "\n $(text 18) "
   fi
 
-  [ -z "$GH_REPO"] && reading "\n (8/14) $(text 14) " GH_REPO
+  [ -z "$GH_REPO" ] && reading "\n (8/14) $(text 14) " GH_REPO
   if [ -n "$GH_REPO" ]; then
     [ -z "$GH_BACKUP_USER" ] && reading "\n (9/14) $(text 15) " GH_BACKUP_USER
     GH_BACKUP_USER=${GH_BACKUP_USER:-$GH_USER}
-    [ -z "$GH_EMAIL"] && reading "\n (10/14) $(text 16) " GH_EMAIL
-    [ -z "$GH_PAT"] && reading "\n (11/14) $(text 17) " GH_PAT
-    [ -z "$BACKUP_TIME"] && reading "\n (12/14) $(text 43) " BACKUP_TIME
-    [ -z "$BACKUP_NUM"] && reading "\n (13/14) $(text 44) " BACKUP_NUM
+    [ -z "$GH_EMAIL" ] && reading "\n (10/14) $(text 16) " GH_EMAIL
+    [ -z "$GH_PAT" ] && reading "\n (11/14) $(text 17) " GH_PAT
+    [ -z "$BACKUP_TIME" ] && reading "\n (12/14) $(text 43) " BACKUP_TIME
+    [ -z "$BACKUP_NUM" ] && reading "\n (13/14) $(text 44) " BACKUP_NUM
   fi
   if [ -z "$BACKUP_TIME" ]; then
       BACKUP_TIME="0 4 * * *"
@@ -341,7 +353,7 @@ dashboard_variables() {
   if [ -z "$BACKUP_NUM" ]; then
         BACKUP_NUM=5
   fi
-  [ -z "$AUTO_RENEW_OR_NOT"] && reading "\n (14/14) $(text 41) " AUTO_RENEW_OR_NOT
+  [ -z "$AUTO_RENEW_OR_NOT" ] && reading "\n (14/14) $(text 41) " AUTO_RENEW_OR_NOT
   grep -qiw 'n' <<< "$AUTO_RENEW_OR_NOT" && IS_AUTO_RENEW=#
 }
 
@@ -490,7 +502,6 @@ Site:
   Theme: "default"
 EOF
   else
-    LOCAL_TOKEN=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
     cat > ${WORK_DIR}/data/config.yaml << EOF
 agent_secret_key: $LOCAL_TOKEN
 debug: false
@@ -670,6 +681,19 @@ EOF
 
   # 检测并显示结果
   if [ "$(systemctl is-active nezha-dashboard)" = 'active' ]; then
+    (
+      sleep 10
+      if [ -f "${WORK_DIR}/data/sqlite.db" ] && [ -n "$LOCAL_TOKEN" ]; then
+        if [ -x "$(command -v sqlite3)" ]; then
+          if [[ "$DASHBOARD_VERSION" =~ 0\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+            sqlite3 ${WORK_DIR}/data/sqlite.db "UPDATE servers SET secret='${LOCAL_TOKEN}' WHERE created_at=(SELECT created_at FROM servers LIMIT 1);"
+          else
+            sqlite3 ${WORK_DIR}/data/sqlite.db "UPDATE users SET agent_secret='${LOCAL_TOKEN}' WHERE id=1;"
+          fi
+          systemctl restart nezha-dashboard
+        fi
+      fi
+    ) &
     [ -n "$ARGO_TOKEN" ] && hint "\n $(text 35) "
     warning "\n $(text 34) " && info "\n $(text 30) $(text 31)! \n"
   else
