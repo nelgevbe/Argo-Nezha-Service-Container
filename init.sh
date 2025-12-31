@@ -13,7 +13,7 @@ fi
 if [ ! -s /etc/supervisor/conf.d/damon.conf ]; then
 
   # 设置 Github CDN 及若干变量，如是 IPv6 only 或者大陆机器，需要 Github 加速网，可自行查找放在 GH_PROXY 处 ，如 https://ghproxy.lvedong.eu.org/ ，能不用就不用，减少因加速网导致的故障。
-  GH_PROXY=${GH_PROXY:-}
+  GH_PROXY=${GH_PROXY:-'https://ghproxy.lvedong.eu.org/'}
   GRPC_PROXY_PORT=443
   GRPC_PORT=8008
   WEB_PORT=8080
@@ -41,7 +41,7 @@ if [ ! -s /etc/supervisor/conf.d/damon.conf ]; then
   [ -n "$GH_REPO" ] && grep -q '/' <<< "$GH_REPO" && GH_REPO=$(awk -F '/' '{print $NF}' <<< "$GH_REPO")  # 填了项目全路径的处理
 
   # 检测是否需要启用 Github CDN，如能直接连通，则不使用
-  [ -n "$GH_PROXY" ] && wget --server-response --quiet --output-document=/dev/null --no-check-certificate --tries=2 --timeout=3 https://raw.githubusercontent.com/Kiritocyz/Argo-Nezha-Service-Container/main/README.md >/dev/null 2>&1 && unset GH_PROXY
+  [ -n "$GH_PROXY" ] && wget --server-response --quiet --output-document=/dev/null --no-check-certificate --tries=2 --timeout=3 https://raw.githubusercontent.com/nelgevbe/Argo-Nezha-Service-Container/main/README.md >/dev/null 2>&1 && unset GH_PROXY
 
   # 设置 DNS
   echo -e "nameserver 127.0.0.11\nnameserver 8.8.4.4\nnameserver 223.5.5.5\nnameserver 2001:4860:4860::8844\nnameserver 2400:3200::1\n" > /etc/resolv.conf
@@ -289,7 +289,7 @@ EOF
   fi
 
   if [[ "$DASHBOARD_VERSION" =~ 0\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
-    wget -P ${WORK_DIR}/data/ ${GH_PROXY}https://github.com/Kiritocyz/Argo-Nezha-Service-Container/raw/main/sqlite.db
+    wget -P ${WORK_DIR}/data/ ${GH_PROXY}https://github.com/nelgevbe/Argo-Nezha-Service-Container/raw/main/sqlite.db
   fi
 
   # 判断 ARGO_AUTH 为 json 还是 token
@@ -358,7 +358,7 @@ DASHBOARD_VERSION=$DASHBOARD_VERSION
 EOF
 
   # 生成 backup.sh 文件的步骤2 - 在线获取 template/bakcup.sh 模板生成完整 backup.sh 文件
-  wget -qO- ${GH_PROXY}https://raw.githubusercontent.com/Kiritocyz/Argo-Nezha-Service-Container/main/template/backup.sh | sed '1,/^########/d' >> $WORK_DIR/backup.sh
+  wget -qO- ${GH_PROXY}https://raw.githubusercontent.com/nelgevbe/Argo-Nezha-Service-Container/main/template/backup.sh | sed '1,/^########/d' >> $WORK_DIR/backup.sh
 
   if [[ -n "$GH_BACKUP_USER" && -n "$GH_EMAIL" && -n "$GH_REPO" && -n "$GH_PAT" ]]; then
     # 生成 restore.sh 文件的步骤1 - 设置环境变量
@@ -380,7 +380,7 @@ IS_DOCKER=1
 EOF
 
     # 生成 restore.sh 文件的步骤2 - 在线获取 template/restore.sh 模板生成完整 restore.sh 文件
-    wget -qO- ${GH_PROXY}https://raw.githubusercontent.com/Kiritocyz/Argo-Nezha-Service-Container/main/template/restore.sh | sed '1,/^########/d' >> $WORK_DIR/restore.sh
+    wget -qO- ${GH_PROXY}https://raw.githubusercontent.com/nelgevbe/Argo-Nezha-Service-Container/main/template/restore.sh | sed '1,/^########/d' >> $WORK_DIR/restore.sh
   fi
 
   # 生成 renew.sh 文件的步骤1 - 设置环境变量
@@ -395,7 +395,7 @@ TEMP_DIR=/tmp/renew
 EOF
 
   # 生成 renew.sh 文件的步骤2 - 在线获取 template/renew.sh 模板生成完整 renew.sh 文件
-  wget -qO- ${GH_PROXY}https://raw.githubusercontent.com/Kiritocyz/Argo-Nezha-Service-Container/main/template/renew.sh | sed '1,/^########/d' >> $WORK_DIR/renew.sh
+  wget -qO- ${GH_PROXY}https://raw.githubusercontent.com/nelgevbe/Argo-Nezha-Service-Container/main/template/renew.sh | sed '1,/^########/d' >> $WORK_DIR/renew.sh
 
   # 生成定时任务: 1.每天北京时间 3:30:00 更新备份和还原文件，2.每天北京时间 4:00:00 备份一次，并重启 cron 服务； 3.每分钟自动检测在线备份文件里的内容
   [ -z "$NO_AUTO_RENEW" ] && [ -s $WORK_DIR/renew.sh ] && ! grep -q "$WORK_DIR/renew.sh" /etc/crontab && echo "30 3 * * * root bash $WORK_DIR/renew.sh" >> /etc/crontab
