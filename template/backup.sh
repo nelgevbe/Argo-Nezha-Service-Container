@@ -152,8 +152,20 @@ if [[ "${DASHBOARD_UPDATE}${CLOUDFLARED_UPDATE}${IS_BACKUP}${FORCE_UPDATE}" =~ t
     fi
     sleep 10
 
-    # 优化数据库，感谢 longsays 的脚本
-    # 1. 导出数据
+    # 优化数据库（先清理，再优化）
+    echo "↓↓↓↓↓↓↓↓↓↓ 开始清理并优化 SQLite 数据库 ↓↓↓↓↓↓↓↓↓↓"
+    
+    # 1. 精准切除 7 天前的历史垃圾数据
+    sqlite3 "data/sqlite.db" <<EOF
+-- 清理 7 天前的服务监控历史记录
+DELETE FROM service_histories WHERE created_at < datetime('now', '-7 days');
+-- 清理 7 天前的流量监控历史记录
+DELETE FROM transfers WHERE created_at < datetime('now', '-7 days');
+.quit
+EOF
+    echo "Old data from service_histories and transfers pruned!"
+
+    # 2. 导出剩余的有效数据
     sqlite3 "data/sqlite.db" <<EOF
 .output /tmp/tmp.sql
 .dump
