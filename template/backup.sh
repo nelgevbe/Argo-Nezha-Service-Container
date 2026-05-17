@@ -152,46 +152,19 @@ if [[ "${DASHBOARD_UPDATE}${CLOUDFLARED_UPDATE}${IS_BACKUP}${FORCE_UPDATE}" =~ t
     fi
     sleep 10
 
-    # 优化数据库（先清理，再优化）
-    echo "↓↓↓↓↓↓↓↓↓↓ 开始清理并优化 SQLite 数据库 ↓↓↓↓↓↓↓↓↓↓"
-    
-    # 1. 精准切除 30 天前的历史垃圾数据
+    # 优化数据库
+    info "\n Starting database maintenance... \n"
     sqlite3 "data/sqlite.db" <<EOF
--- 清理 30 天前的服务监控历史记录
-DELETE FROM service_histories WHERE created_at < datetime('now', '-30 days');
--- 清理 30 天前的流量监控历史记录
-DELETE FROM transfers WHERE created_at < datetime('now', '-30 days');
-.quit
-EOF
-    echo "Old data from service_histories and transfers pruned!"
-
-    # 2. 导出剩余的有效数据
-    sqlite3 "data/sqlite.db" <<EOF
-.output /tmp/tmp.sql
-.dump
+DELETE FROM service_histories WHERE datetime(created_at) < datetime('now', '-30 days');
+DELETE FROM transfers WHERE datetime(created_at) < datetime('now', '-30 days');
+VACUUM;
 .quit
 EOF
 
-    # 2. 导入到新库
-    if [ $? -ne 0 ]; then
-      echo "Data export failed!"
+    if [ $? -eq 0 ]; then
+      info "Database pruned and vacuumed successfully!"
     else
-      sqlite3 "/tmp/new.sqlite.db" <<EOF
-.read /tmp/tmp.sql
-.quit
-EOF
-    fi
-
-    # 3. 检查导入是否成功
-    if [ $? -ne 0 ]; then
-      echo "Data import failed!"
-    else
-      # 覆盖原库并优化
-      mv -f "/tmp/new.sqlite.db" "data/sqlite.db"
-      sqlite3 "data/sqlite.db" 'VACUUM;'
-      [ $? -eq 0 ] && echo "Database migration and optimisation complete!" || echo "Database migration and optimisation failed!"
-      # 清理临时文件
-      rm -f /tmp/tmp.sql
+      warning "Database optimization encountered an issue, but proceeding with backup."
     fi
 
     # 克隆现有备份库
