@@ -17,7 +17,7 @@ DASHBOARD_VERSION=
 
 ########
 
-# version: 2024.12.18
+# version: 2026.05.22
 
 warning() { echo -e "\033[31m\033[01m$*\033[0m"; }  # 红色
 error() { echo -e "\033[31m\033[01m$*\033[0m" && exit 1; } # 红色
@@ -56,8 +56,11 @@ ABC
   fi
 }
 
+# 动态确保工作目录正确
+[ -z "$WORK_DIR" ] && WORK_DIR=$(pwd)
+
 # 运行备份脚本时，自锁一定时间以防 Github 缓存的原因导致数据马上被还原
-touch $(awk -F '=' '/NO_ACTION_FLAG/{print $2; exit}' $WORK_DIR/restore.sh)1
+touch $(awk -F '=' '/NO_ACTION_FLAG/{print $2; exit}' "$WORK_DIR/restore.sh")1
 
 # 手自动标志
 [ "$1" = 'a' ] && WAY=Scheduled || WAY=Manualed
@@ -65,12 +68,12 @@ touch $(awk -F '=' '/NO_ACTION_FLAG/{print $2; exit}' $WORK_DIR/restore.sh)1
 
 # 检查更新面板主程序 app 及 cloudflared
 if [ -z "$DASHBOARD_VERSION" ]; then
-  cd $WORK_DIR
+  cd "$WORK_DIR" || error "Work dir not found!"
   DASHBOARD_NOW=$(./app -v)
   DASHBOARD_LATEST=$(wget -qO- https://api.github.com/repos/naiba/nezha/releases/latest | awk -F '"' '/tag_name/{print $4}')
   [ "v${DASHBOARD_NOW}" != "$DASHBOARD_LATEST" ] && DASHBOARD_UPDATE=true
 elif [[ "$DASHBOARD_VERSION" =~ [0-1]{1}\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
-  cd $WORK_DIR
+  cd "$WORK_DIR" || error "Work dir not found!"
   DASHBOARD_NOW=$(./app -v)
   DASHBOARD_LATEST=$(sed 's/v//; s/^/v&/' <<< "$DASHBOARD_VERSION")
   [ "v${DASHBOARD_NOW}" != "$DASHBOARD_LATEST" ] && DASHBOARD_UPDATE=true
@@ -95,7 +98,7 @@ if [[ -n "$GH_REPO" && -n "$GH_BACKUP_USER" && -n "$GH_EMAIL" && -n "$GH_PAT" ]]
 fi
 
 # 分步骤处理
-if [[ "${DASHBOARD_UPDATE}${CLOUDFLARED_UPDATE}${IS_BACKUP}${FORCE_UPDATE}" =~ true ]]; then
+if [[ "${DASHBOARD_UPDATE}${CLOUDFLARED_UPDATE}${is_backup}${FORCE_UPDATE}" =~ true ]]; then
   # 更新面板主程序
   if [[ "${DASHBOARD_UPDATE}${FORCE_UPDATE}" =~ 'true' ]]; then
     hint "\n Renew dashboard app to $DASHBOARD_LATEST \n"
@@ -107,12 +110,12 @@ if [[ "${DASHBOARD_UPDATE}${CLOUDFLARED_UPDATE}${IS_BACKUP}${FORCE_UPDATE}" =~ t
       if [ "$IS_DOCKER" = 1 ]; then
         supervisorctl stop nezha >/dev/null 2>&1
         sleep 10
-        mv -f /tmp/dashboard-linux-$ARCH $WORK_DIR/app
+        mv -f /tmp/dashboard-linux-$ARCH "$WORK_DIR/app"
         supervisorctl start nezha >/dev/null 2>&1
       else
         cmd_systemctl disable >/dev/null 2>&1
         sleep 10
-        mv -f /tmp/dashboard-linux-$ARCH $WORK_DIR/app
+        mv -f /tmp/dashboard-linux-$ARCH "$WORK_DIR/app"
         cmd_systemctl enable >/dev/null 2>&1
       fi
     fi
@@ -127,11 +130,11 @@ if [[ "${DASHBOARD_UPDATE}${CLOUDFLARED_UPDATE}${IS_BACKUP}${FORCE_UPDATE}" =~ t
       info "\n Restart Argo \n"
       if [ "$IS_DOCKER" = 1 ]; then
         supervisorctl stop argo >/dev/null 2>&1
-        mv -f /tmp/cloudflared $WORK_DIR/
+        mv -f /tmp/cloudflared "$WORK_DIR/"
         supervisorctl start argo >/dev/null 2>&1
       else
         cmd_systemctl disable >/dev/null 2>&1
-        mv -f /tmp/cloudflared $WORK_DIR/
+        mv -f /tmp/cloudflared "$WORK_DIR/"
         cmd_systemctl enable >/dev/null 2>&1
       fi
     fi
@@ -152,24 +155,28 @@ if [[ "${DASHBOARD_UPDATE}${CLOUDFLARED_UPDATE}${IS_BACKUP}${FORCE_UPDATE}" =~ t
     fi
     sleep 10
 
-    # 优化数据库
-    info "\n Starting database maintenance... \n"
-    sqlite3 "data/sqlite.db" <<EOF
-DELETE FROM service_histories WHERE datetime(created_at) < datetime('now', '-30 days');
-DELETE FROM transfers WHERE datetime(created_at) < datetime('now', '-30 days');
+    # 强制切换回哪吒工作目录并优化数据库
+    cd "$WORK_DIR" || error "Failed to cd to WORK_DIR"
+    if [ -f "data/sqlite.db" ]; then
+      info "\n[DB-Prune] Optimizing data/sqlite.db tables directly..."      
+      sqlite3 "data/sqlite.db" <<EOF
+DELETE FROM service_histories WHERE created_at < datetime('now', '-30 days');
+DELETE FROM transfers WHERE created_at < datetime('now', '-30 days');
 VACUUM;
 .quit
 EOF
-
-    if [ $? -eq 0 ]; then
-      info "Database pruned and vacuumed successfully!"
+      if [ $? -eq 0 ]; then
+        info "[DB-Prune] Success! service_histories and transfers tables shrunk."
+      else
+        warning "[DB-Prune] Cleanup failed or sqlite3 missed the target."
+      fi
     else
-      warning "Database optimization encountered an issue, but proceeding with backup."
+      warning "[DB-Prune] data/sqlite.db not found at $(pwd)/data/sqlite.db"
     fi
 
     # 克隆现有备份库
     [ -d /tmp/$GH_REPO ] && rm -rf /tmp/$GH_REPO
-    git clone https://$GH_PAT@github.com/$GH_BACKUP_USER/$GH_REPO.git --depth 1 --quiet /tmp/$GH_REPO
+    git clone "https://$GH_PAT@github.com/$GH_BACKUP_USER/$GH_REPO.git" --depth 1 --quiet /tmp/$GH_REPO
 
     # 压缩备份数据，只备份 data/ 目录下的 config.yaml 和 sqlite.db； resource/ 目录下名字有 custom 的自定义主题文件夹
     if [ -d /tmp/$GH_REPO ]; then
@@ -179,24 +186,24 @@ EOF
       echo -e "↑↑↑↑↑↑↑↑↑↑ dashboard-$TIME.tar.gz list ↑↑↑↑↑↑↑↑↑↑\n\n"
 
       # 更新备份 Github 库，删除 5 天前的备份
-      cd /tmp/$GH_REPO
+      cd /tmp/$GH_REPO || error "Failed to access clone repo"
       [ -e ./.git/index.lock ] && rm -f ./.git/index.lock
       echo "dashboard-$TIME.tar.gz" > README.md
       find ./ -name '*.gz' | sort | head -n -$DAYS | xargs rm -f
-      git config --global user.name $GH_BACKUP_USER
-      git config --global user.email $GH_EMAIL
+      git config --global user.name "$GH_BACKUP_USER"
+      git config --global user.email "$GH_EMAIL"
       git checkout --orphan tmp_work
       git add .
       git commit -m "$WAY at $TIME ."
       git push -f -u origin HEAD:main --quiet
       IS_UPLOAD="$?"
       cd ..
-      rm -rf $GH_REPO
+      rm -rf "$GH_REPO"
       if [ "$IS_UPLOAD" = 0 ]; then
-        echo "dashboard-$TIME.tar.gz" > $WORK_DIR/dbfile
+        echo "dashboard-$TIME.tar.gz" > "$WORK_DIR/dbfile"
         info "\n Succeed to upload the backup files dashboard-$TIME.tar.gz to Github.\n"
       else
-        rm -f $(awk -F '=' '/NO_ACTION_FLAG/{print $2; exit}' $WORK_DIR/restore.sh)*
+        rm -f $(awk -F '=' '/NO_ACTION_FLAG/{print $2; exit}' "$WORK_DIR/restore.sh")*
         hint "\n Failed to upload the backup files dashboard-$TIME.tar.gz to Github.\n"
       fi
     fi
