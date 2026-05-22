@@ -98,7 +98,7 @@ if [[ -n "$GH_REPO" && -n "$GH_BACKUP_USER" && -n "$GH_EMAIL" && -n "$GH_PAT" ]]
 fi
 
 # 分步骤处理
-if [[ "${DASHBOARD_UPDATE}${CLOUDFLARED_UPDATE}${is_backup}${FORCE_UPDATE}" =~ true ]]; then
+if [[ "${DASHBOARD_UPDATE}${CLOUDFLARED_UPDATE}${IS_BACKUP}${FORCE_UPDATE}" =~ true ]]; then
   # 更新面板主程序
   if [[ "${DASHBOARD_UPDATE}${FORCE_UPDATE}" =~ 'true' ]]; then
     hint "\n Renew dashboard app to $DASHBOARD_LATEST \n"
